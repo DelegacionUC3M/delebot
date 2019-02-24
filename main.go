@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"database/sql"
-	"strings"
+	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	_ "github.com/lib/pq"
@@ -88,10 +88,9 @@ func main() {
 					// Format all delegates in a message
 					var result bytes.Buffer
 					for _, person := range delegatesList {
-						result.WriteString(strings.Join(
-							[]string{person.Name, person.Surname, person.NIA},
-							"-",
-						))
+						msgFormatted := fmt.Sprintf("%s %s - %s",
+							person.Name, person.Surname, person.NIA)
+						result.WriteString(msgFormatted)
 						result.WriteString("\n")
 					}
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID,
