@@ -1,17 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"database/sql"
-	"fmt"
+
+	_ "github.com/lib/pq"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
-	_ "github.com/lib/pq"
+
+	delegates "github.com/DelegacionUC3M/delebot/delegates"
 )
 
 const (
-	basicError = "Ha habido un problema al ejecutar el comando."
-	tomlFile   = "./config.toml"
+	tomlFile = "./config.toml"
 )
 
 func main() {
@@ -22,12 +22,13 @@ func main() {
 	}
 
 	dbConfig := CreateDbInfo(privateConfig.BD)
-	db, err := sql.Open("postgres", dbConfig)
+	DB, err := sql.Open("postgres", dbConfig)
 	if err != nil {
 		panic(err)
 	}
+	defer DB.Close()
 
-	bot, err := tgbotapi.NewBotAPI(privateConfig.Bot.Token)
+	Bot, err := tgbotapi.NewBotAPI(privateConfig.Bot.Token)
 	if err != nil {
 		panic(err)
 	}
@@ -35,70 +36,21 @@ func main() {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates, err := bot.GetUpdatesChan(u)
+	updates, err := Bot.GetUpdatesChan(u)
 	if err != nil {
 		panic(err)
 	}
 
-	for update := range updates {
+	for Update := range updates {
 
-		if update.Message == nil {
+		if Update.Message == nil {
 			continue
 		}
 
-		switch update.Message.Command() {
+		switch Update.Message.Command() {
 		case "curso":
-			course := ParseCourse(update.Message.CommandArguments())
-
-			// The course provided is not valid
-			if course == -1 {
-				BotReturnError(
-					bot,
-					update,
-					"Comando incorrecto.\nPrueba con /course [1,2,3,4]")
-
-			} else {
-
-				query := CourseQuery(course)
-				rows, err := db.Query(query)
-
-				if err != nil {
-					BotReturnError(
-						bot,
-						update,
-						basicError)
-
-				} else {
-					// Append all delegates from the course to the list
-					var delegatesList []Delegate
-
-					for rows.Next() {
-						delegate := Delegate{}
-						err = rows.Scan(
-							&delegate.Name,
-							&delegate.Surname,
-							&delegate.NIA)
-						if err != nil {
-							panic(err)
-						}
-
-						delegatesList = append(delegatesList, delegate)
-					}
-
-					// Format all delegates in a message
-					var result bytes.Buffer
-					for _, person := range delegatesList {
-						msgFormatted := fmt.Sprintf("%s %s - %s",
-							person.Name, person.Surname, person.NIA)
-						result.WriteString(msgFormatted)
-						result.WriteString("\n")
-					}
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-						result.String())
-					bot.Send(msg)
-				}
-
-			} // End of switch
-		}
+			course := delegates.ParseCourse(Update.Message.CommandArguments())
+			delegates.QueryDelegatesFromCourse(course)
+		} // End of switch
 	}
 }
